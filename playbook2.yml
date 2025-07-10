@@ -3,11 +3,11 @@
   hosts: all
   become: true
   vars:
-    repo_url: "https://github.com/your-username/blog_aws.git"
-    project_dir: "/home/ubuntu"
-    env_dir: "/home/ubuntu/projectenv"
-    venv_dir: "/home/ubuntu/projectenv/venv"
-    requirements_path: "/home/ubuntu/blog_aws/requirements.txt"
+    repo_url: "https://github.com/NvnNeha/django_blog.git"
+    project_dir: "/home/ubuntu/django_blog/nvnblog"
+    env_dir: "/home/ubuntu/projectenv/venv"
+    dest_git: "/home/ubuntu/django_blog"
+    requirements_path: "/home/ubuntu/django_blog/nvnblog/requirements.txt"
 
   tasks:
 
@@ -20,7 +20,7 @@
     - name: Clone blog_aws repository
       git:
         repo: "{{ repo_url }}"
-        dest: "{{ project_dir }}/blog_aws"
+        dest: "{{ dest_git }}"
         version: HEAD
         force: yes
         update: yes
@@ -33,12 +33,13 @@
         group: ubuntu
         mode: '0755'
 
-    - name: Create Python virtual environment
-      command: python3 -m venv "{{ venv_dir }}"
+    - name: Create virtual environment inside projectenv
+      command: python3 -m venv venv
       args:
-        creates: "{{ venv_dir }}/bin/activate"
+        chdir: "{{ env_dir }}"
 
     - name: Install required Python packages from requirements.txt
       pip:
         requirements: "{{ requirements_path }}"
-        virtualenv: "{{ venv_dir }}"
+        virtualenv: "{{ env_dir  }}"
+        virtualenv_command: python3 -m venv
