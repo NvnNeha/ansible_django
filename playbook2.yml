@@ -1,0 +1,44 @@
+---
+- name: Clone repo, setup virtualenv, and install dependencies
+  hosts: all
+  become: true
+  vars:
+    repo_url: "https://github.com/your-username/blog_aws.git"
+    project_dir: "/home/ubuntu"
+    env_dir: "/home/ubuntu/projectenv"
+    venv_dir: "/home/ubuntu/projectenv/venv"
+    requirements_path: "/home/ubuntu/blog_aws/requirements.txt"
+
+  tasks:
+
+    - name: Ensure git is installed
+      apt:
+        name: git
+        state: present
+        update_cache: yes
+
+    - name: Clone blog_aws repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ project_dir }}/blog_aws"
+        version: HEAD
+        force: yes
+        update: yes
+
+    - name: Create projectenv folder
+      file:
+        path: "{{ env_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Create Python virtual environment
+      command: python3 -m venv "{{ venv_dir }}"
+      args:
+        creates: "{{ venv_dir }}/bin/activate"
+
+    - name: Install required Python packages from requirements.txt
+      pip:
+        requirements: "{{ requirements_path }}"
+        virtualenv: "{{ venv_dir }}"

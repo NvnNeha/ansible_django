@@ -1,0 +1,26 @@
+---
+- name: Update system and install Python, PostgreSQL, and Nginx
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Install required packages
+      apt:
+        name:
+          - python3-dev
+          - python3-venv
+          - python3-pip
+          - libpq-dev
+          - nginx
+        state: present
+
