@@ -1,21 +1,24 @@
 ---
-- name: Deploy Django Blog on EC2 Instances with tag "django-blog"
-  hosts: django_blog_ec2
+- name: Deploy Django Blog on EC2 Instances with tag
+  hosts: all
   become: yes
   vars:
-    repo_url: "https://github.com/<your-username>/<your-django-blog-repo>.git"
-    app_dir: "/opt/django_blog"
-    venv_dir: "/opt/django_blog/venv"
+    repo_url: "https://github.com/NvnNeha/django_blog.git"
+    app_dir: "/home/ubuntu/django_blog/nvnblog"
+    git_clone: "/home/ubuntu/django_blog"
+    create_venv_dir: "/home/ubuntu/"
+    project_env: "/home/ubuntu/project_env"
     gunicorn_service: |
       [Unit]
       Description=gunicorn daemon for django_blog
+      Requires=gunicorn.socket
       After=network.target
 
       [Service]
-      User=www-data
+      User=ubuntu
       Group=www-data
       WorkingDirectory={{ app_dir }}
-      ExecStart={{ venv_dir }}/bin/gunicorn --access-logfile - --workers 3 --bind unix:/run/gunicorn.sock django_blog.wsgi:application
+      ExecStart={{ project_env }}/bin/gunicorn --access-logfile - --workers 3 --bind unix:/run/gunicorn.sock nvnblog.wsgi:application
 
       [Install]
       WantedBy=multi-user.target
@@ -31,11 +34,8 @@
     nginx_conf: |
       server {
           listen 80;
-          server_name _;
+          server_name www.naveenkumarsaini.click;
           location = /favicon.ico { access_log off; log_not_found off; }
-          location /static/ {
-              root {{ app_dir }};
-          }
           location / {
               include proxy_params;
               proxy_pass http://unix:/run/gunicorn.sock;
@@ -56,19 +56,19 @@
     - name: Clone Django Blog repo
       git:
         repo: "{{ repo_url }}"
-        dest: "{{ app_dir }}"
+        dest: "{{ git_clone }}"
         version: "main"
       notify: Restart Gunicorn
 
     - name: Create Python virtual environment
-      command: virtualenv {{ venv_dir }}
+      command: virtualenv {{ project_env }}
       args:
-        creates: "{{ venv_dir }}/bin/activate"
+        creates: "{{ project_env }}/bin/activate"
 
     - name: Install Python requirements
       pip:
         requirements: "{{ app_dir }}/requirements.txt"
-        virtualenv: "{{ venv_dir }}"
+        virtualenv: "{{ project_env }}"
         virtualenv_python: python3
 
     - name: Create systemd gunicorn service file
@@ -102,6 +102,12 @@
         enabled: yes
         state: started
 
+    - name: Add user 'ubuntu' to group 'www-data'
+      ansible.builtin.user:
+        name: ubuntu
+        groups: www-data
+        append: yes  # ensures the user keeps existing group memberships
+
     - name: Configure nginx site
       copy:
         dest: /etc/nginx/sites-available/django_blog
@@ -127,6 +133,13 @@
         name: nginx
         state: restarted
         enabled: yes
+    - name: Upload .env file to Django project
+      copy:
+        src: files/.env
+        dest: "{{ app_dir }}/.env"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
 
   handlers:
     - name: Restart Gunicorn
