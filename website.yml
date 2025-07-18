@@ -1,0 +1,135 @@
+---
+- name: Deploy Django Blog on EC2 Instances with tag "django-blog"
+  hosts: django_blog_ec2
+  become: yes
+  vars:
+    repo_url: "https://github.com/<your-username>/<your-django-blog-repo>.git"
+    app_dir: "/opt/django_blog"
+    venv_dir: "/opt/django_blog/venv"
+    gunicorn_service: |
+      [Unit]
+      Description=gunicorn daemon for django_blog
+      After=network.target
+
+      [Service]
+      User=www-data
+      Group=www-data
+      WorkingDirectory={{ app_dir }}
+      ExecStart={{ venv_dir }}/bin/gunicorn --access-logfile - --workers 3 --bind unix:/run/gunicorn.sock django_blog.wsgi:application
+
+      [Install]
+      WantedBy=multi-user.target
+    gunicorn_socket: |
+      [Unit]
+      Description=gunicorn socket
+
+      [Socket]
+      ListenStream=/run/gunicorn.sock
+
+      [Install]
+      WantedBy=sockets.target
+    nginx_conf: |
+      server {
+          listen 80;
+          server_name _;
+          location = /favicon.ico { access_log off; log_not_found off; }
+          location /static/ {
+              root {{ app_dir }};
+          }
+          location / {
+              include proxy_params;
+              proxy_pass http://unix:/run/gunicorn.sock;
+          }
+      }
+  tasks:
+    - name: Install packages
+      apt:
+        name:
+          - python3-dev
+          - python3-pip
+          - virtualenv
+          - nginx
+          - libpq-dev
+        state: present
+        update_cache: yes
+
+    - name: Clone Django Blog repo
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "main"
+      notify: Restart Gunicorn
+
+    - name: Create Python virtual environment
+      command: virtualenv {{ venv_dir }}
+      args:
+        creates: "{{ venv_dir }}/bin/activate"
+
+    - name: Install Python requirements
+      pip:
+        requirements: "{{ app_dir }}/requirements.txt"
+        virtualenv: "{{ venv_dir }}"
+        virtualenv_python: python3
+
+    - name: Create systemd gunicorn service file
+      copy:
+        dest: /etc/systemd/system/gunicorn.service
+        content: "{{ gunicorn_service }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Create systemd gunicorn socket file
+      copy:
+        dest: /etc/systemd/system/gunicorn.socket
+        content: "{{ gunicorn_socket }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Reload systemd
+      command: systemctl daemon-reload
+
+    - name: Enable and start gunicorn.socket
+      systemd:
+        name: gunicorn.socket
+        enabled: yes
+        state: started
+
+    - name: Enable and start gunicorn.service
+      systemd:
+        name: gunicorn.service
+        enabled: yes
+        state: started
+
+    - name: Configure nginx site
+      copy:
+        dest: /etc/nginx/sites-available/django_blog
+        content: "{{ nginx_conf }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable nginx site
+      file:
+        src: /etc/nginx/sites-available/django_blog
+        dest: /etc/nginx/sites-enabled/django_blog
+        state: link
+        force: yes
+
+    - name: Remove default nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
+
+  handlers:
+    - name: Restart Gunicorn
+      systemd:
+        name: gunicorn
+        state: restarted
