@@ -1,0 +1,38 @@
+
+files/*
+# Ansible logs
+*.retry
+
+# Secrets and environment files
+*.vault
+*.env
+.env
+
+# SSH keys
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# Role or collection artifacts
+roles/*/files/*
+roles/*/templates/*
+collections/ansible_collections/
+
+# Python virtual environments
+venv/
+__pycache__/
+*.pyc
+
+# OS/macOS-specific files
+.DS_Store
+
+# Backup or temp files
+*.bak
+*.swp
+*.swo
+*~
+
+# Inventory files (optional if dynamic)
+inventory.ini
+hosts
